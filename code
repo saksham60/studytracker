@@ -1,0 +1,237 @@
+my_app/
+  ├─ data/
+  │   ├─ mbrots.sql
+  │   ├─ mapping_excel.xlsx
+  ├─ ingest_schema.py
+  ├─ openai_client.py
+  ├─ query_engine.py
+  └─ app.py
+
+
+
+
+# ingest_schema.py
+
+import os
+import faiss
+import numpy as np
+import pickle
+from openai_client import get_azure_openai
+
+def ingest_schema():
+    """
+    Reads the mbrots.sql file, generates embeddings using Azure OpenAI,
+    and stores them in a FAISS index along with the schema text.
+    """
+    # Create Azure OpenAI client
+    model = get_azure_openai()
+
+    # Load SQL file
+    sql_path = os.path.join("data", "mbrots.sql")
+    with open(sql_path, "r", encoding="utf-8") as file:
+        schema_sql = file.read()
+
+    # Generate embeddings
+    response = model.embeddings.create(
+        input=schema_sql,
+        model="text-embedding-ada-002"
+    )
+    embeddings = np.array([response.data[0].embedding]).astype("float32")
+
+    # Create FAISS index
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
+
+    # Write index to disk
+    faiss.write_index(index, "sql_schema.faiss")
+
+    # Save schema text for retrieval
+    with open("schema_sql.pkl", "wb") as f:
+        pickle.dump(schema_sql, f)
+
+    print("Schema ingestion complete!")
+
+
+if __name__ == "__main__":
+    ingest_schema()
+
+
+
+# openai_client.py
+
+import os
+from openai import AzureOpenAI
+
+def get_azure_openai():
+    """
+    Returns an authenticated Azure OpenAI client.
+    Make sure you have OPENAI_API_KEY in your environment variables.
+    """
+    azure_endpoint = "https://chat-ai.cisco.com"  # or your actual endpoint
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_version = "2024-02-01"
+
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not set in environment variables.")
+
+    return AzureOpenAI(
+        azure_endpoint=azure_endpoint,
+        api_key=api_key,
+        api_version=api_version
+    )
+
+
+
+# openai_client.py
+
+import os
+from openai import AzureOpenAI
+
+def get_azure_openai():
+    """
+    Returns an authenticated Azure OpenAI client.
+    Make sure you have OPENAI_API_KEY in your environment variables.
+    """
+    azure_endpoint = "https://chat-ai.cisco.com"  # or your actual endpoint
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_version = "2024-02-01"
+
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not set in environment variables.")
+
+    return AzureOpenAI(
+        azure_endpoint=azure_endpoint,
+        api_key=api_key,
+        api_version=api_version
+    )
+
+
+
+
+# query_engine.py
+
+import faiss
+import pickle
+import numpy as np
+from openai_client import get_azure_openai
+
+# Load schema index and text once at import
+_index = faiss.read_index("sql_schema.faiss")
+with open("schema_sql.pkl", "rb") as f:
+    _schema_sql = pickle.load(f)
+
+_model = get_azure_openai()
+
+def get_schema_context(user_query: str) -> str:
+    """
+    Use embeddings to find the most relevant schema context for the given query.
+    For simplicity, we return the entire schema. 
+    For advanced usage, you can chunk your schema, store multiple embeddings, etc.
+    """
+    embedding_response = _model.embeddings.create(
+        input=user_query,
+        model="text-embedding-ada-002"
+    )
+    prompt_embedding = np.array([embedding_response.data[0].embedding]).astype("float32")
+
+    # k = 1 indicates returning top single chunk; you can store multiple schema chunks for more granular retrieval
+    _, indices = _index.search(prompt_embedding, k=1)
+    
+    # This example returns the entire schema. In a production scenario,
+    # you might store multiple schema chunks and select the best match from `indices`.
+    return _schema_sql
+
+def generate_sql(query: str, schema_context: str, mapping: dict) -> str:
+    """
+    Prompts GPT-4 to generate Teradata SQL using the schema context and mapping details.
+    mapping dict: e.g. {
+      'Dashboard': 'p1',
+      'SOLR': 'someSolrField',
+      'Teradata': 'someTeradataField'
+    }
+    """
+    dashboard_field = mapping.get("Dashboard", "")
+    solr_field = mapping.get("SOLR", "")
+    teradata_field = mapping.get("Teradata", "")
+
+    prompt = f'''
+Schema Details:
+{schema_context}
+
+Dashboard Mapping:
+- Dashboard Field: {dashboard_field}
+- SOLR Field: {solr_field}
+- Teradata Field: {teradata_field}
+
+User Query: {query}
+
+Using the above schema details and mapping, generate a valid Teradata SQL statement.
+
+SQL:
+'''
+    response = _model.chat.completions.create(
+        model="gpt-4-0125-preview",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500
+    )
+    return response.choices[0].message.content.strip()
+
+
+
+# app.py
+
+import streamlit as st
+import pandas as pd
+from query_engine import get_schema_context, generate_sql
+
+def main():
+    st.title("Dynamic Teradata SQL Generator")
+
+    # Load Excel Mappings
+    mappings_df = pd.read_excel("data/mapping_excel.xlsx", sheet_name="Sheet1")
+
+    # Prompt area
+    user_query = st.text_area("Enter your request/prompt for SQL:")
+
+    # Dashboard selection
+    dashboards = mappings_df["Dashboard"].dropna().unique().tolist()
+    selected_dashboard = st.selectbox("Select a Dashboard:", dashboards)
+
+    # Wait for user to click 'Generate'
+    if st.button("Generate SQL"):
+        if not user_query:
+            st.warning("Please enter a prompt.")
+        else:
+            # Get the relevant row for the selected dashboard
+            row = mappings_df[mappings_df["Dashboard"] == selected_dashboard].iloc[0].to_dict()
+
+            # Retrieve schema context
+            schema_context = get_schema_context(user_query)
+            # Generate SQL with GPT-4
+            sql_output = generate_sql(user_query, schema_context, row)
+
+            st.subheader(f"Generated SQL for Dashboard: {selected_dashboard}")
+            st.code(sql_output, language="sql")
+
+    st.markdown("---")
+    st.header("Bulk Dashboard SQL Queries")
+    st.write("Click to auto-generate some queries for each dashboard.")
+    for dash in dashboards:
+        if st.button(f"Auto-generate queries for {dash}"):
+            row = mappings_df[mappings_df["Dashboard"] == dash].iloc[0].to_dict()
+            schema_context = get_schema_context(f"Insights for {dash}")
+            # Provide a broader prompt
+            prompt = (
+                f"Generate a few insightful Teradata SQL queries to explore data for Dashboard '{dash}'. "
+                "Focus on typical analytics or performance questions."
+            )
+            sql_output = generate_sql(prompt, schema_context, row)
+            st.subheader(f"SQL Queries for {dash}")
+            st.code(sql_output, language="sql")
+
+if __name__ == "__main__":
+    main()
+
+
+
