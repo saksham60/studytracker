@@ -1,1 +1,135 @@
+dynamic_sql_app/
+├── data/
+│   ├── mapping_excel.xlsx
+│   └── mbrots.sql
+├── config.py
+├── azure_openai.py
+├── query_generator.py
+└── app.py
+
+
+# config.py
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "https://chat-ai.com")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_VERSION = "2024-02-01"
+OPENAI_MODEL = "gpt-4-0125-preview"
+
+MAPPING_FILE_PATH = "data/mapping_excel.xlsx"
+SCHEMA_FILE_PATH = "data/mbrots.sql"
+
+
+
+# azure_openai.py
+
+from openai import AzureOpenAI
+from config import AZURE_OPENAI_ENDPOINT, OPENAI_API_KEY, OPENAI_API_VERSION
+
+def get_openai_client():
+    return AzureOpenAI(
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=OPENAI_API_KEY,
+        api_version=OPENAI_API_VERSION
+    )
+
+
+# query_generator.py
+
+from azure_openai import get_openai_client
+from config import SCHEMA_FILE_PATH, OPENAI_MODEL
+
+# Load schema once
+with open(SCHEMA_FILE_PATH, "r", encoding="utf-8") as f:
+    SCHEMA_SQL = f.read()
+
+client = get_openai_client()
+
+def generate_sql(user_query: str, dashboard_field: str, solr_field: str, teradata_field: str) -> str:
+    prompt = f"""
+You are an expert Teradata SQL developer.
+
+Schema details:
+{SCHEMA_SQL}
+
+Dashboard Mapping:
+- Dashboard Field: {dashboard_field}
+- SOLR Field: {solr_field}
+- Teradata Field: {teradata_field}
+
+Generate a Teradata SQL query for the following request:
+\"\"\"
+{user_query}
+\"\"\"
+
+SQL Query:
+"""
+
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+# app.py
+
+import streamlit as st
+import pandas as pd
+from config import MAPPING_FILE_PATH
+from query_generator import generate_sql
+
+def main():
+    st.title("📊 Dynamic Teradata SQL Generator")
+
+    # Load mappings
+    mappings_df = pd.read_excel(MAPPING_FILE_PATH, sheet_name="Sheet1")
+
+    dashboards = mappings_df["Dashboard"].dropna().unique().tolist()
+
+    selected_dashboard = st.selectbox("Select Dashboard", dashboards)
+    mapping_row = mappings_df[mappings_df["Dashboard"] == selected_dashboard].iloc[0]
+
+    st.markdown("---")
+
+    user_query = st.text_area("Enter your query/request to generate SQL:")
+
+    if st.button("Generate SQL"):
+        if user_query:
+            sql = generate_sql(
+                user_query=user_query,
+                dashboard_field=mapping_row["Dashboard"],
+                solr_field=mapping_row["SOLR"],
+                teradata_field=mapping_row["Teradata"]
+            )
+
+            st.subheader("Generated Teradata SQL:")
+            st.code(sql, language="sql")
+        else:
+            st.warning("Please enter a query.")
+
+    st.markdown("---")
+
+    st.header("🔍 Pre-defined Dashboard Queries")
+    for dash in dashboards:
+        if st.button(f"Generate Queries for {dash}"):
+            row = mappings_df[mappings_df["Dashboard"] == dash].iloc[0]
+            auto_prompt = f"Provide insightful Teradata SQL queries for analysis of {dash} dashboard."
+            sql = generate_sql(
+                user_query=auto_prompt,
+                dashboard_field=row["Dashboard"],
+                solr_field=row["SOLR"],
+                teradata_field=row["Teradata"]
+            )
+            st.subheader(f"SQL Queries for {dash}:")
+            st.code(sql, language="sql")
+
+if __name__ == "__main__":
+    main()
 
