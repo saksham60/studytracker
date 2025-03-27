@@ -1,74 +1,118 @@
-dynamic_sql_app/
-├── data/
-│   ├── mapping_excel.xlsx
-│   └── mbrots.sql
-├── config.py
-├── azure_openai.py
-├── query_generator.py
-└── app.py
+# app.py
+import streamlit as st
+import pandas as pd
+from config import MAPPING_FILE_PATH
+from query_generator import generate_sql
 
+def main():
+    st.set_page_config(page_title="Dynamic Teradata SQL Generator", layout="wide")
 
-# config.py
+    # Sidebar Branding & Information
+    with st.sidebar:
+        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Teradata_logo_2018.svg/2560px-Teradata_logo_2018.svg.png", width=200)
+        st.title("Dynamic SQL App")
+        st.markdown("""
+        ---
+        **🚀 Dynamic Teradata SQL Generator** allows you to:
+        
+        - Quickly generate Teradata SQL from natural language queries.
+        - Access pre-defined analytics dashboards instantly.
+        
+        **How to Use**:
+        - Enter a clear business question or analytic query.
+        - Click **"Generate SQL"**.
+        - Review, copy, and execute the SQL in your environment.
+        
+        Developed by [Your Company Name]
+        """)
 
-import os
-from dotenv import load_dotenv
+    # Main UI
+    st.title("📊 Dynamic Teradata SQL Generator")
+    st.write("Generate precise and efficient SQL queries effortlessly.")
 
-load_dotenv()
+    mappings_df = pd.read_excel(MAPPING_FILE_PATH, sheet_name="Sheet1")
 
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "https://chat-ai.com")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_API_VERSION = "2024-02-01"
-OPENAI_MODEL = "gpt-4-0125-preview"
+    st.markdown("---")
 
-MAPPING_FILE_PATH = "data/mapping_excel.xlsx"
-SCHEMA_FILE_PATH = "data/mbrots.sql"
+    col1, col2 = st.columns([2, 1])
 
+    with col1:
+        user_query = st.text_area(
+            "📝 Enter Your Query:",
+            placeholder="Example: Show total sales by region for last quarter..."
+        )
 
+    with col2:
+        st.markdown(" ")
+        st.markdown(" ")
+        if st.button("✨ Generate SQL", use_container_width=True):
+            if user_query.strip():
+                full_mappings = mappings_df.to_dict(orient="records")
+                sql = generate_sql_with_full_mapping(user_query, full_mappings)
 
-# azure_openai.py
+                st.success("SQL Generated Successfully!")
 
-from openai import AzureOpenAI
-from config import AZURE_OPENAI_ENDPOINT, OPENAI_API_KEY, OPENAI_API_VERSION
+                with st.expander("📄 View Generated SQL"):
+                    st.code(sql, language="sql")
 
-def get_openai_client():
-    return AzureOpenAI(
-        azure_endpoint=AZURE_OPENAI_ENDPOINT,
-        api_key=OPENAI_API_KEY,
-        api_version=OPENAI_API_VERSION
-    )
+                st.download_button(
+                    "📥 Download SQL",
+                    sql,
+                    file_name="generated_query.sql",
+                    mime="text/sql",
+                    use_container_width=True
+                )
+            else:
+                st.error("Please enter a valid query to proceed!")
 
+    st.markdown("---")
 
-# query_generator.py
+    # Dashboard Analytics Section
+    st.header("📈 Pre-defined Dashboard Analytics")
+    st.write("Instantly access powerful pre-generated SQL queries for your dashboards:")
 
-from azure_openai import get_openai_client
-from config import SCHEMA_FILE_PATH, OPENAI_MODEL
+    cols = st.columns(3)
+    for idx, dashboard in enumerate(mappings_df["Dashboard"].dropna().unique()):
+        with cols[idx % 3]:
+            if st.button(f"📌 {dashboard}", use_container_width=True):
+                row = mappings_df[mappings_df["Dashboard"] == dashboard].iloc[0]
+                prompt = f"Provide insightful SQL queries to analyze the '{dashboard}' dashboard effectively."
 
-# Load schema once
-with open(SCHEMA_FILE_PATH, "r", encoding="utf-8") as f:
-    SCHEMA_SQL = f.read()
+                sql_dashboard = generate_sql(
+                    user_query=prompt,
+                    dashboard_field=row["Dashboard"],
+                    solr_field=row["SOLR"],
+                    teradata_field=row["Teradata"]
+                )
 
-client = get_openai_client()
+                st.info(f"✅ SQL Queries for {dashboard} ready!")
 
-def generate_sql(user_query: str, dashboard_field: str, solr_field: str, teradata_field: str) -> str:
+                with st.expander(f"🔍 SQL Queries for {dashboard}"):
+                    st.code(sql_dashboard, language="sql")
+
+                st.download_button(
+                    f"Download {dashboard} SQL",
+                    sql_dashboard,
+                    file_name=f"{dashboard}_queries.sql",
+                    mime="text/sql",
+                    use_container_width=True
+                )
+
+# Function to generate SQL with full mapping context
+def generate_sql_with_full_mapping(user_query: str, mappings: list) -> str:
+    from query_generator import client, OPENAI_MODEL
     prompt = f"""
-You are an expert Teradata SQL developer.
+You're a Teradata SQL expert. Using the mapping provided below:
 
-Schema details:
-{SCHEMA_SQL}
+Mappings:
+{mappings}
 
-Dashboard Mapping:
-- Dashboard Field: {dashboard_field}
-- SOLR Field: {solr_field}
-- Teradata Field: {teradata_field}
+Generate Teradata SQL query for the following request:
 
-Generate a Teradata SQL query for the following request:
-\"\"\"
-{user_query}
-\"\"\"
+"{user_query}"
 
 SQL Query:
 """
-
     response = client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[{"role": "user", "content": prompt}],
@@ -77,59 +121,5 @@ SQL Query:
 
     return response.choices[0].message.content.strip()
 
-
-# app.py
-
-import streamlit as st
-import pandas as pd
-from config import MAPPING_FILE_PATH
-from query_generator import generate_sql
-
-def main():
-    st.title("📊 Dynamic Teradata SQL Generator")
-
-    # Load mappings
-    mappings_df = pd.read_excel(MAPPING_FILE_PATH, sheet_name="Sheet1")
-
-    dashboards = mappings_df["Dashboard"].dropna().unique().tolist()
-
-    selected_dashboard = st.selectbox("Select Dashboard", dashboards)
-    mapping_row = mappings_df[mappings_df["Dashboard"] == selected_dashboard].iloc[0]
-
-    st.markdown("---")
-
-    user_query = st.text_area("Enter your query/request to generate SQL:")
-
-    if st.button("Generate SQL"):
-        if user_query:
-            sql = generate_sql(
-                user_query=user_query,
-                dashboard_field=mapping_row["Dashboard"],
-                solr_field=mapping_row["SOLR"],
-                teradata_field=mapping_row["Teradata"]
-            )
-
-            st.subheader("Generated Teradata SQL:")
-            st.code(sql, language="sql")
-        else:
-            st.warning("Please enter a query.")
-
-    st.markdown("---")
-
-    st.header("🔍 Pre-defined Dashboard Queries")
-    for dash in dashboards:
-        if st.button(f"Generate Queries for {dash}"):
-            row = mappings_df[mappings_df["Dashboard"] == dash].iloc[0]
-            auto_prompt = f"Provide insightful Teradata SQL queries for analysis of {dash} dashboard."
-            sql = generate_sql(
-                user_query=auto_prompt,
-                dashboard_field=row["Dashboard"],
-                solr_field=row["SOLR"],
-                teradata_field=row["Teradata"]
-            )
-            st.subheader(f"SQL Queries for {dash}:")
-            st.code(sql, language="sql")
-
 if __name__ == "__main__":
     main()
-
