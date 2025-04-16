@@ -1,125 +1,67 @@
-# app.py
 import streamlit as st
 import pandas as pd
+from config import generate_sql
 from config import MAPPING_FILE_PATH
-from query_generator import generate_sql
 
-def main():
-    st.set_page_config(page_title="Dynamic Teradata SQL Generator", layout="wide")
+# Load Excel for MBR
+excel_path = 'output_json.xlsx'  # Replace with your actual path
+mbr_df = pd.read_excel(excel_path)
 
-    # Sidebar Branding & Information
+def dynamic_sql_app():
+    st.title("⚡ Dynamic SQL Generator")
+
     with st.sidebar:
-        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Teradata_logo_2018.svg/2560px-Teradata_logo_2018.svg.png", width=200)
         st.title("Dynamic SQL App")
-        st.markdown("""
-        ---
-        **🚀 Dynamic Teradata SQL Generator** allows you to:
-        
-        - Quickly generate Teradata SQL from natural language queries.
-        - Access pre-defined analytics dashboards instantly.
-        
-        **How to Use**:
-        - Enter a clear business question or analytic query.
-        - Click **"Generate SQL"**.
-        - Review, copy, and execute the SQL in your environment.
-        
-        Developed by [Your Company Name]
-        """)
+        st.markdown("Quickly generate Teradata SQL from natural language queries.")
 
-    # Main UI
-    st.title("📊 Dynamic Teradata SQL Generator")
-    st.write("Generate precise and efficient SQL queries effortlessly.")
+    st.write("Generate SQL queries effortlessly.")
 
     mappings_df = pd.read_excel(MAPPING_FILE_PATH, sheet_name="Sheet1")
 
-    st.markdown("---")
+    user_query = st.text_area("Enter your query/request to generate SQL:")
 
-    col1, col2 = st.columns([2, 1])
+    if st.button("Generate SQL"):
+        if user_query:
+            sql = generate_sql(
+                user_query=user_query,
+                dashboard_field=mappings_df["Dashboard"],
+                solr_field=mappings_df["SOLR"],
+                teradata_field=mappings_df["Teradata"]
+            )
+            st.subheader("Generated Teradata SQL:")
+            st.code(sql, language="sql")
+        else:
+            st.warning("Please enter a query.")
 
-    with col1:
-        user_query = st.text_area(
-            "📝 Enter Your Query:",
-            placeholder="Example: Show total sales by region for last quarter..."
-        )
+def view_mbr_dict():
+    st.title("📖 View MBR Dictionary")
+    st.dataframe(mbr_df)
 
-    with col2:
-        st.markdown(" ")
-        st.markdown(" ")
-        if st.button("✨ Generate SQL", use_container_width=True):
-            if user_query.strip():
-                full_mappings = mappings_df.to_dict(orient="records")
-                sql = generate_sql_with_full_mapping(user_query, full_mappings)
+def create_mbr_dict():
+    st.title("✨ Create MBR Dictionary")
+    st.write("Logic for creating MBR dictionary will be implemented here.")
 
-                st.success("SQL Generated Successfully!")
 
-                with st.expander("📄 View Generated SQL"):
-                    st.code(sql, language="sql")
+def update_mbr():
+    st.title("🔄 Update MBR Dictionary")
+    st.write("Logic for updating MBR dictionary will be implemented here.")
 
-                st.download_button(
-                    "📥 Download SQL",
-                    sql,
-                    file_name="generated_query.sql",
-                    mime="text/sql",
-                    use_container_width=True
-                )
-            else:
-                st.error("Please enter a valid query to proceed!")
 
-    st.markdown("---")
+# Main application with left-side navigation
+st.sidebar.title("🚀 Navigation")
+option = st.sidebar.radio("Choose an option:", [
+    "Dynamic SQL App", 
+    "View MBR Dict",
+    "Create MBR Dict",
+    "Update MBR"
+])
 
-    # Dashboard Analytics Section
-    st.header("📈 Pre-defined Dashboard Analytics")
-    st.write("Instantly access powerful pre-generated SQL queries for your dashboards:")
-
-    cols = st.columns(3)
-    for idx, dashboard in enumerate(mappings_df["Dashboard"].dropna().unique()):
-        with cols[idx % 3]:
-            if st.button(f"📌 {dashboard}", use_container_width=True):
-                row = mappings_df[mappings_df["Dashboard"] == dashboard].iloc[0]
-                prompt = f"Provide insightful SQL queries to analyze the '{dashboard}' dashboard effectively."
-
-                sql_dashboard = generate_sql(
-                    user_query=prompt,
-                    dashboard_field=row["Dashboard"],
-                    solr_field=row["SOLR"],
-                    teradata_field=row["Teradata"]
-                )
-
-                st.info(f"✅ SQL Queries for {dashboard} ready!")
-
-                with st.expander(f"🔍 SQL Queries for {dashboard}"):
-                    st.code(sql_dashboard, language="sql")
-
-                st.download_button(
-                    f"Download {dashboard} SQL",
-                    sql_dashboard,
-                    file_name=f"{dashboard}_queries.sql",
-                    mime="text/sql",
-                    use_container_width=True
-                )
-
-# Function to generate SQL with full mapping context
-def generate_sql_with_full_mapping(user_query: str, mappings: list) -> str:
-    from query_generator import client, OPENAI_MODEL
-    prompt = f"""
-You're a Teradata SQL expert. Using the mapping provided below:
-
-Mappings:
-{mappings}
-
-Generate Teradata SQL query for the following request:
-
-"{user_query}"
-
-SQL Query:
-"""
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=500
-    )
-
-    return response.choices[0].message.content.strip()
-
-if __name__ == "__main__":
-    main()
+# Navigation
+if option == "Dynamic SQL App":
+    dynamic_sql_app()
+elif option == "View MBR Dict":
+    view_mbr_dict()
+elif option == "Create MBR Dict":
+    create_mbr_dict()
+elif option == "Update MBR":
+    update_mbr()
