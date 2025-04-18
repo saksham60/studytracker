@@ -1,67 +1,7 @@
-import streamlit as st
-import pandas as pd
-from config import generate_sql
-from config import MAPPING_FILE_PATH
-
-# Load Excel for MBR
-excel_path = 'output_json.xlsx'  # Replace with your actual path
-mbr_df = pd.read_excel(excel_path)
-
-def dynamic_sql_app():
-    st.title("⚡ Dynamic SQL Generator")
-
-    with st.sidebar:
-        st.title("Dynamic SQL App")
-        st.markdown("Quickly generate Teradata SQL from natural language queries.")
-
-    st.write("Generate SQL queries effortlessly.")
-
-    mappings_df = pd.read_excel(MAPPING_FILE_PATH, sheet_name="Sheet1")
-
-    user_query = st.text_area("Enter your query/request to generate SQL:")
-
-    if st.button("Generate SQL"):
-        if user_query:
-            sql = generate_sql(
-                user_query=user_query,
-                dashboard_field=mappings_df["Dashboard"],
-                solr_field=mappings_df["SOLR"],
-                teradata_field=mappings_df["Teradata"]
-            )
-            st.subheader("Generated Teradata SQL:")
-            st.code(sql, language="sql")
-        else:
-            st.warning("Please enter a query.")
-
-def view_mbr_dict():
-    st.title("📖 View MBR Dictionary")
-    st.dataframe(mbr_df)
-
-def create_mbr_dict():
-    st.title("✨ Create MBR Dictionary")
-    st.write("Logic for creating MBR dictionary will be implemented here.")
-
-
-def update_mbr():
-    st.title("🔄 Update MBR Dictionary")
-    st.write("Logic for updating MBR dictionary will be implemented here.")
-
-
-# Main application with left-side navigation
-st.sidebar.title("🚀 Navigation")
-option = st.sidebar.radio("Choose an option:", [
-    "Dynamic SQL App", 
-    "View MBR Dict",
-    "Create MBR Dict",
-    "Update MBR"
-])
-
-# Navigation
-if option == "Dynamic SQL App":
-    dynamic_sql_app()
-elif option == "View MBR Dict":
-    view_mbr_dict()
-elif option == "Create MBR Dict":
-    create_mbr_dict()
-elif option == "Update MBR":
-    update_mbr()
+#	Item	Title	Details / Description
+1	MBR Dictionary UI	View and Create MBR Dictionary	The Streamlit UI is now fully functional, allowing users to view, create, and potentially update entries in the MBR (Monthly Business Review) Dictionary. A screenshot demonstrating this feature has been captured and is available for reference. Future plans include validation checks and edit permissions.
+2	Context for OTS Dashboard	Correct Context Established	The contextual mapping for the OTS (Operational Tracking System) dashboard has been successfully implemented. This ensures all visualizations and KPIs reflect accurate data semantics and user-specific views. User feedback has been incorporated for layout and terminology alignment.
+3	Scaling Requirements	Access to Codebase	To enable seamless scaling and team onboarding, complete access to the codebase (frontend and backend repositories) is required. This includes proper documentation, environment setup instructions, and dependency files to ensure continuity in development and troubleshooting.
+4	CI/CD Infrastructure Needs	Infrastructure for Deployment	Initial assessments show the need for setting up CI/CD pipelines using GitHub Actions or Jenkins. This will automate the deployment process, enable environment-specific builds, reduce manual errors, and ensure secure release cycles. Support from the DevOps team is awaited.
+5	Application Hosting	Current Hosting Solution	The application is hosted on an internal development environment (VM or cloud sandbox). This setup supports collaboration and iterative development. However, a decision needs to be made regarding staging/production migration, preferably to a scalable cloud setup (AWS/GCP) with load balancing.
+6	Demo Planning	Internal Demo Preparation	An internal demo with Debottam and the core team is being planned to gather feedback, verify UI/UX flow, and test backend stability under user inputs. This session is targeted for next week. Post-internal validation, an external demo for stakeholders is scheduled for the following sprint.
