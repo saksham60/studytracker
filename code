@@ -1,7 +1,1 @@
-#	Item	Title	Current Status	Next Steps / Needs
-1	MBR Dictionary UI	View and Create MBR Dictionary	Streamlit UI is functional; users can view and create dictionary entries. Screenshot demonstrating functionality is available.	Add edit/delete functionality, implement validation checks, and define access control for dictionary maintenance.
-2	Context for OTS Dashboard	Correct Context Established	Context mapping for the dashboard completed. Terminology and KPIs aligned. User feedback incorporated.	Finalize naming conventions, document mappings, and confirm with business users.
-3	Scaling Requirements	Access to Codebase	Codebase partially accessible. Some dependencies and setup steps are unclear.	Full codebase access required, including setup instructions and dependency files. Need onboarding support for new developers.
-4	CI/CD Infrastructure Needs	Infrastructure for Deployment	Identified need for automated CI/CD pipelines. Manual deployments currently in use.	Set up CI/CD pipeline using GitHub Actions/Jenkins. Involve DevOps for credentials, secrets management, and staging environment setup.
-5	Application Hosting	Current Hosting Solution	App is hosted in internal dev environment. Team can access and collaborate.	Decide on long-term hosting strategy (e.g., AWS/GCP). Enable auto-scaling and failover support for production.
-6	Demo Planning	Internal Demo Preparation	Internal demo planned with Debottam and core team next week.	Prepare demo script, validate flow end-to-end, gather feedback. Schedule external demo after internal approval.
+
