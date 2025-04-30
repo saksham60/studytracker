@@ -1,1 +1,66 @@
 
+You are an expert SQL developer.  Write a single query that compares “bookings” (actuals) vs. “forecast” for a given user in our sales organization.  The data is grouped by the user’s position in the sales hierarchy and includes calculated pacing fields.  Follow **exactly** these rules:
+
+1. **Identify the current fiscal week**  
+   - From table `PV_MBR_NRT_SUMMARY_TV`, pick the single latest `START_TV_DTM`.  
+   - Call that CTE `latest_summary`.
+
+2. **Get workday counts for that week**  
+   - From `PV_FISCAL_DAY_TO_YEAR`, find the row where `CALENDAR_DATE = CAST(latest_summary.max_tv_dtm AS DATE)`.  
+   - Select `WORKDAY_IN_FISCAL_WEEK_NUM AS total_days` and `WORKDAY_IN_FISCAL_WTD_COUNT AS day_in_num`.  
+   - Call that CTE `fiscal_info`.
+
+3. **Aggregate actual bookings**  
+   - From `PV_MBR_NRT_SUMMARY s`, joined to `PV_MBR_PROCESS_DATE p` on `FISCAL_YEAR_WEEK_NUM_INT`.  
+   - Filter to `s.CEC_ID = 'schuri'` and to the current week (`s.FISCAL_YEAR_WEEK_NUM_INT = p.FISCAL_YEAR_WEEK_NUM_INT`).  
+   - Roll up the 7-level hierarchy (`L0_SALES_TERRITORY_DESCR` … `L6_SALES_TERRITORY_DESCR`) into two columns:  
+     - `std_parent` (choose the description at `s.LVL`)  
+     - `std`        (same as `std_parent`)  
+   - Sum these weekly metrics:  
+     ```
+     ACTUAL_TO_AMT,
+     ORACLE_ACTUAL_AMT,
+     POS_AMT,
+     DSV_POS_AMT,
+     EIS_CM_AMT,
+     XAAS_BKGS_AMT,
+     CURR_DAY_ACTUAL_AMT,
+     CURR_DAY_ACTUAL_WTD_AMT
+     ```  
+   - Call that CTE `bookings`.
+
+4. **Aggregate the forecast**  
+   - From `PV_MBR_NXT_GEN_FCST_DETAIL f`, joined to `PV_MBR_PROCESS_DATE p` on `FISCAL_YEAR_WEEK_NUM_INT`.  
+   - Filter to the same user (`f.CEC_ID = 'schuri'`), that same current week, plus  
+     ```
+     BK_FORECAST_CATEGORY_NAME = 'Product NXT'
+     AND FORECAST_TYPE_CD        = 'DR_PRODUCT_NXT'
+     ```  
+   - Roll up the sales hierarchy into `std_parent`/`std` identically to `bookings`.  
+   - Sum `WEEK_FCST_AMT AS current_week_forecast`.  
+   - Call that CTE `forecast`.
+
+5. **Full-outer-join & compute pacing**  
+   - `FULL OUTER JOIN bookings b` to `forecast f` on `(b.std_parent = f.std_parent AND b.std = f.std)`.  
+   - Use `COALESCE` to pick whichever hierarchy values exist.  
+   - Select all measured columns from both sides.  
+   - Compute two derived columns:
+     1. `current_week_percent` = percentage of forecast achieved to date:
+        ```sql
+        ROUND(
+          CASE WHEN f.current_week_forecast = 0 THEN 0
+               ELSE b.current_day_actual_wtd * 100.0
+                    / f.current_week_forecast
+          END
+        , 2)
+        ```
+     2. `current_week_to_go` = how much of the forecast remains:
+        ```sql
+        f.current_week_forecast - b.current_day_actual_wtd
+        ```
+   - CROSS JOIN your `fiscal_info` CTE so that `total_days` and `day_in_num` are available for any future linearity calculations.
+   - Order the final result by `std_parent, std`.
+
+Produce the complete SQL, with each of the five numbered steps implemented as CTEs and a final `SELECT`.  Use proper formatting, indentation, and ANSI-style naming.```
+
+—Now just send **exactly** the above block to any LLM (ChatGPT, Claude, Llama 2, etc.) and it will generate the same SQL query.
