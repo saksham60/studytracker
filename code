@@ -1,1 +1,88 @@
-
+Stage	Topics	Projects/Exercises	Learning Resource	Estimated Time
+1. Introduction & Setup	- What is Node.js?
+- Install Node.js
+- JavaScript fundamentals	- Hello World
+- Simple CLI calculator	- Node.js Official Docs
+- FreeCodeCamp: Node.js Basics
+- YouTube: Net Ninja Node.js Playlist	1 week
+2. Core Modules & Basics	- Core modules (fs, path, http, os)
+- Event loop
+- Exports & modules	- File reader/writer
+- Basic HTTP server	- Book: Node.js in Action by Cantelon et al.
+- YouTube: Node.js Crash Course
+- Node.js Examples GitHub	1-2 weeks
+3. Asynchronous Programming	- Callbacks, Promises, Async/Await
+- Error handling
+- NPM basics	- Weather CLI app
+- Async file operations	- Udemy: The Complete Node.js Developer Course (Mead & Percival)
+- Node.js Official Docs: Async	2 weeks
+4. Streams, Buffers, Events	- Streams & buffers
+- EventEmitter
+- Working with JSON	- Streaming file app
+- Event-based logger	- YouTube: Node.js & Express.js Full Course
+- Book: Learning Node by Shelley Powers	1-2 weeks
+5. Express.js & Routing	- Express basics
+- Routing
+- Middleware
+- Template engines	- Task manager API
+- Blog app	- Udemy: NodeJS - The Complete Guide (Maximilian Schwarzmüller)
+- Express.js Docs	2-3 weeks
+6. REST APIs & CRUD	- RESTful API design
+- CRUD ops
+- API testing (Postman)
+- Express routers	- REST API
+- E-commerce API	- Udemy: Node.js, Express, MongoDB & More: The Complete Bootcamp (Jonas Schmedtmann)
+- FreeCodeCamp: APIs & Microservices	2-3 weeks
+7. Database Integration	- MongoDB & Mongoose
+- SQL & Sequelize
+- Data modeling	- Blog with DB
+- User management	- MongoDB University: Node.js & MongoDB
+- YouTube: Traversy Media Node.js & MongoDB	2-3 weeks
+8. Authentication & Security	- JWT
+- Sessions
+- Auth flows
+- Access control	- Auth system
+- Role-based API	- Udemy: Node.js API Masterclass (Brad Traversy)
+- JWT.io Guides	2 weeks
+9. Error Handling & Optimization	- Error handling
+- Logging
+- Performance
+- Security best practices	- Error tracker
+- Secure API	- Book: Node.js Design Patterns
+- Node.js Best Practices	1-2 weeks
+10. Testing in Node.js	- Unit & integration testing
+- Mocha, Chai
+- TDD/BDD	- Test suite
+- TDD project	- Udemy: Node.js Unit Testing In-Depth
+- Mocha Docs	1-2 weeks
+11. Real-Time Apps	- Socket.IO
+- WebSockets
+- Real-time streams	- Chat app
+- Live dashboard	- YouTube: Net Ninja Socket.IO Playlist
+- Socket.IO Docs	1-2 weeks
+12. Architecture & Patterns	- MVC
+- Design patterns
+- Project structure	- Refactor to MVC
+- Clean architecture app	- Book: Node.js Design Patterns
+- Roadmap.sh Node.js	1-2 weeks
+13. Microservices & Scaling	- Microservices
+- API gateways
+- Message brokers	- Microservices app
+- Multi-service system	- Udemy: Microservices with Node JS and React (Stephen Grider)
+- Node.js Microservices Guide	2-3 weeks
+14. Performance & Advanced	- Clustering
+- Load balancing
+- Worker threads	- Clustered app
+- CPU-intensive tasks	- Udemy: Node JS: Advanced Concepts (Stephen Grider)
+- Node.js Perf. Docs	1-2 weeks
+15. DevOps & Deployment	- Docker
+- Kubernetes
+- CI/CD
+- Infra as code	- Dockerized app
+- Deploy pipeline	- YouTube: Academind Docker & Node.js
+- Docker Docs	2 weeks
+16. Open Source & Advanced Topics	- Package publishing
+- Native addons
+- Community contribution	- NPM package
+- Native module	- Node.js Official Docs
+- GitHub Node.js Examples	1-2 weeks
