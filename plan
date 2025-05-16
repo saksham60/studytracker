@@ -1,0 +1,70 @@
+"Stage","Topics","Projects/Exercises","Learning Resource","Estimated Time"
+"1. Introduction & Setup","- What is Node.js?
+- Install Node.js
+- JavaScript fundamentals","- Hello World
+- Simple CLI calculator","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","1 week"
+"2. Core Modules & Basics","- Core modules (fs, path, http, os)
+- Event loop
+- Exports & modules","- File reader/writer
+- Basic HTTP server","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","1-2 weeks"
+"3. Asynchronous Programming","- Callbacks, Promises, Async/Await
+- Error handling
+- NPM basics","- Weather CLI app
+- Async file operations","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","2 weeks"
+"4. Streams, Buffers, Events","- Streams & buffers
+- EventEmitter
+- Working with JSON","- Streaming file app
+- Event-based logger","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","1-2 weeks"
+"5. Express.js & Routing","- Express basics
+- Routing
+- Middleware
+- Template engines","- Task manager API
+- Blog app","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","2-3 weeks"
+"6. REST APIs & CRUD","- RESTful API design
+- CRUD ops
+- API testing (Postman)
+- Express routers","- REST API
+- E-commerce API","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","2-3 weeks"
+"7. Database Integration","- MongoDB & Mongoose
+- SQL & Sequelize
+- Data modeling","- Blog with DB
+- User management","https://university.mongodb.com/","2-3 weeks"
+"8. Authentication & Security","- JWT
+- Sessions
+- Auth flows
+- Access control","- Auth system
+- Role-based API","https://jwt.io/introduction/","2 weeks"
+"9. Error Handling & Optimization","- Error handling
+- Logging
+- Performance
+- Security best practices","- Error tracker
+- Secure API","https://gitconnected.com/learn/node-js","1-2 weeks"
+"10. Testing in Node.js","- Unit & integration testing
+- Mocha, Chai
+- TDD/BDD","- Test suite
+- TDD project","https://mochajs.org/","1-2 weeks"
+"11. Real-Time Apps","- Socket.IO
+- WebSockets
+- Real-time streams","- Chat app
+- Live dashboard","https://socket.io/docs/","1-2 weeks"
+"12. Architecture & Patterns","- MVC
+- Design patterns
+- Project structure","- Refactor to MVC
+- Clean architecture app","https://roadmap.sh/nodejs","1-2 weeks"
+"13. Microservices & Scaling","- Microservices
+- API gateways
+- Message brokers","- Microservices app
+- Multi-service system","https://dev.to","2-3 weeks"
+"14. Performance & Advanced","- Clustering
+- Load balancing
+- Worker threads","- Clustered app
+- CPU-intensive tasks","https://nodejs.org/en/docs/guides/","1-2 weeks"
+"15. DevOps & Deployment","- Docker
+- Kubernetes
+- CI/CD
+- Infra as code","- Dockerized app
+- Deploy pipeline","https://docs.docker.com/","2 weeks"
+"16. Open Source & Advanced Topics","- Package publishing
+- Native addons
+- Community contribution","- NPM package
+- Native module","https://www.reddit.com/r/node/comments/119wqbn/best_resources_to_learn_node_js/","1-2 weeks"
