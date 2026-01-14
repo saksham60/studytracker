@@ -1,248 +1,157 @@
-import React, { useMemo, useRef, useState } from "react";
-import "bootstrap/dist/css/bootstrap.min.css";
-import { Modal, Button, Form, Row, Col, InputGroup, Overlay, ListGroup, Badge } from "react-bootstrap";
-import { ShieldLock, PencilSquare, BoxArrowUpRight, XLg, Link45deg } from "react-bootstrap-icons";
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 
-type AccessLevel = "Can Edit" | "Can Review" | "Can View";
-
-interface Person {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-}
-
-interface CollaborateModalProps {
-  show: boolean;
-  onClose: () => void;
-  docTitle: string;
-  shareLink?: string;
-  onCreateSpace?: (people: Person[], access: AccessLevel, message: string) => void;
-  onShareEmail?: (people: Person[], access: AccessLevel, message: string) => void;
-}
-
-const MOCK_PEOPLE: Person[] = [
-  { id: "1", name: "Girish Parekh", email: "girish.p@company.com" },
-  { id: "2", name: "Mark Patterson", email: "mark.p@company.com" },
-  { id: "3", name: "Liz Cernoi", email: "liz.c@company.com" },
-  { id: "4", name: "Odysseas Char", email: "odysseas@company.com" },
-  { id: "5", name: "Aarav Shah", email: "aarav@company.com" },
-  { id: "6", name: "Meera Iyer", email: "meera@company.com" },
-  { id: "7", name: "Liam Patel", email: "liam@company.com" },
-  { id: "8", name: "Zoya Khan", email: "zoya@company.com" },
-];
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]!.toUpperCase())
-    .join("");
-
-function CollaborateModalInner(props: CollaborateModalProps) {
-  const { show, onClose, docTitle, shareLink = "https://share.example.com/abc123", onCreateSpace, onShareEmail } = props;
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Person[]>([MOCK_PEOPLE[0], MOCK_PEOPLE[1]]);
-  const [access, setAccess] = useState<AccessLevel>("Can Edit");
-  const [message, setMessage] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const suggestions = useMemo(() => {
-    if (!query.trim()) return [] as Person[];
-    const q = query.toLowerCase();
-    return MOCK_PEOPLE.filter((p) => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)).filter(
-      (p) => !selected.some((s) => s.id === p.id)
+-- Enums
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'memory_kind') THEN
+    CREATE TYPE memory_kind AS ENUM (
+      'preference',
+      'profile',
+      'fact',
+      'rule',
+      'summary',
+      'other'
     );
-  }, [query, selected]);
+  END IF;
+END$$;
 
-  const addPerson = (p: Person) => {
-    setSelected((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));
-    setQuery("");
-    inputRef.current?.focus();
-  };
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'memory_scope') THEN
+    CREATE TYPE memory_scope AS ENUM ('global', 'conversation');
+  END IF;
+END$$;
 
-  const removePerson = (id: string) => {
-    setSelected((prev) => prev.filter((p) => p.id !== id));
-  };
+--------------------------
+-- 1) Conversation + Summary
+--------------------------
+CREATE TABLE IF NOT EXISTS conversation (
+  conversation_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_key          TEXT,                                 -- user id/email/etc (optional)
+  metadata          JSONB NOT NULL DEFAULT '{}'::jsonb,
 
-  const handleEnter = () => {
-    if (suggestions.length > 0) addPerson(suggestions[0]);
-    else if (/.+@.+\..+/.test(query)) {
-      const email = query.trim();
-      addPerson({ id: email, name: email, email });
-    }
-  };
+  -- Concurrency + ordering (multi-container safe)
+  last_step         BIGINT NOT NULL DEFAULT 0,
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
-  };
+  -- Rolling summary (updated periodically by a worker or after N turns)
+  summary           TEXT NOT NULL DEFAULT '',
+  summary_updated_at TIMESTAMPTZ,
 
-  const handleCreateSpace = () => {
-    onCreateSpace?.(selected, access, message);
-    onClose();
-  };
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-  const handleShareEmail = () => {
-    onShareEmail?.(selected, access, message);
-    onClose();
-  };
+CREATE INDEX IF NOT EXISTS idx_conversation_user_key
+  ON conversation(user_key);
 
-  const peopleCount = selected.length;
+--------------------------
+-- 2) Checkpoints (resume state)
+--------------------------
+CREATE TABLE IF NOT EXISTS checkpoint (
+  checkpoint_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id   UUID NOT NULL REFERENCES conversation(conversation_id) ON DELETE CASCADE,
 
-  return (
-    <Modal show={show} onHide={onClose} centered backdrop="static" size="lg">
-      <style>{`
-        .chip { display:inline-flex; align-items:center; gap:.5rem; padding:.25rem .5rem; border-radius:9999px; border:1px solid #e5e7eb; background:#fff; font-weight:500; margin:.25rem; box-shadow:0 1px 0 rgba(0,0,0,.04); }
-        .avatar { width:24px; height:24px; border-radius:9999px; display:inline-flex; align-items:center; justify-content:center; background:#eef2ff; color:#4338ca; font-size:.75rem; font-weight:700; }
-        .suggestion-list { max-height:220px; overflow:auto; }
-        .muted { color:#6b7280; }
-        .title-row { gap:.5rem; align-items:center; }
-        .subtle-btn { border-color:#d1d5db; }
-      `}</style>
-      <Modal.Header closeButton>
-        <Modal.Title className="d-flex align-items-center gap-2">
-          <span className="fw-semibold">Collaborate</span>
-        </Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        <div className="d-flex align-items-center gap-2 mb-2 text-secondary">
-          <ShieldLock className="me-1" />
-          <small className="fw-semibold">Cisco Confidential</small>
-        </div>
-        <div className="d-flex title-row mb-3">
-          <div className="fw-semibold">{docTitle}</div>
-          <a href="#" aria-label="Open in new" className="text-muted">
-            <BoxArrowUpRight />
-          </a>
-          <a href="#" aria-label="Rename" className="text-muted">
-            <PencilSquare />
-          </a>
-        </div>
-        <Row className="g-3 align-items-start">
-          <Col md={8}>
-            <Form.Label className="fw-semibold">Search by name or email</Form.Label>
-            <div className="position-relative">
-              <InputGroup>
-                <Form.Control
-                  ref={inputRef}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleEnter()}
-                  placeholder="Add name or email"
-                  aria-label="Add name or email"
-                />
-              </InputGroup>
-              <Overlay target={() => inputRef.current as unknown as HTMLElement} placement="bottom" show={suggestions.length > 0}>
-                {(overlayProps) => {
-                  const { ref, style, ...rest } = overlayProps as any;
-                  return (
-                    <div ref={ref} style={style} {...rest} className="bg-white border rounded w-100 mt-1 shadow-sm">
-                      <ListGroup variant="flush" className="suggestion-list">
-                        {suggestions.map((p) => (
-                          <ListGroup.Item action key={p.id} onClick={() => addPerson(p)} className="d-flex align-items-center gap-2">
-                            <span className="avatar">{initials(p.name)}</span>
-                            <div>
-                              <div className="fw-semibold">{p.name}</div>
-                              <small className="text-muted">{p.email}</small>
-                            </div>
-                          </ListGroup.Item>
-                        ))}
-                      </ListGroup>
-                    </div>
-                  );
-                }}
-              </Overlay>
-            </div>
-            {selected.length > 0 && (
-              <div className="mt-2">
-                {selected.map((p) => (
-                  <span key={p.id} className="chip">
-                    <span className="avatar">{initials(p.name)}</span>
-                    <span>{p.name}</span>
-                    <Button size="sm" variant="link" className="p-0 text-muted" onClick={() => removePerson(p.id)} aria-label={`Remove ${p.name}`}>
-                      <XLg />
-                    </Button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </Col>
-          <Col md={4}>
-            <Form.Label className="fw-semibold">Select Access</Form.Label>
-            <Form.Select value={access} onChange={(e) => setAccess(e.currentTarget.value as AccessLevel)} aria-label="Select access level">
-              <option>Can Edit</option>
-              <option>Can Review</option>
-              <option>Can View</option>
-            </Form.Select>
-          </Col>
-        </Row>
-        <div className="mt-3">
-          <Form.Label className="fw-semibold">Add a message</Form.Label>
-          <Form.Control as="textarea" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional message for recipients" />
-        </div>
-        <div className="mt-3">
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <small className="muted">
-              <Badge bg="light" text="dark" className="me-2">
-                {peopleCount}
-              </Badge>
-              People with access ({peopleCount} {peopleCount === 1 ? "person" : "people"})
-            </small>
-            <Button variant="link" className="p-0">
-              Manage Access
-            </Button>
-          </div>
-          <ListGroup>
-            {selected.map((p) => (
-              <ListGroup.Item key={p.id} className="d-flex align-items-center justify-content-between">
-                <div className="d-flex align-items-center gap-2">
-                  <span className="avatar">{initials(p.name)}</span>
-                  <div className="fw-semibold">{p.name}</div>
-                  <small className="text-muted">• {p.email}</small>
-                </div>
-                <small className="text-secondary">{access}</small>
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
-        </div>
-      </Modal.Body>
-      <Modal.Footer className="d-flex justify-content-between">
-        <div className="d-flex gap-2">
-          <Button onClick={handleCreateSpace}>Create a Webex Space</Button>
-          <Button variant="outline-secondary" className="subtle-btn" onClick={copyLink}>
-            <Link45deg className="me-1" />
-            {copied ? "Copied" : "Copy Link"}
-          </Button>
-          <Button variant="outline-secondary" className="subtle-btn" onClick={handleShareEmail}>
-            Share via Email
-          </Button>
-        </div>
-      </Modal.Footer>
-    </Modal>
-  );
-}
+  step              BIGINT NOT NULL,                      -- monotonic per conversation
+  state             JSONB NOT NULL,                       -- full structured state snapshot
 
-export default function Demo() {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className="p-4" style={{ minHeight: "50vh" }}>
-      <Button onClick={() => setOpen(true)}>Open Collaborate</Button>
-      <CollaborateModalInner
-        show={open}
-        onClose={() => setOpen(false)}
-        docTitle="AI infra bookings__FY2026 q1"
-        onCreateSpace={(people, access) => console.log("Create Webex Space:", { people, access })}
-        onShareEmail={(people, access, message) => console.log("Share via Email:", { people, access, message })}
-      />
-    </div>
-  );
-}
+  run_id            TEXT,
+  tags              TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-export { CollaborateModalInner as CollaborateModal };
+  UNIQUE(conversation_id, step)
+);
+
+CREATE INDEX IF NOT EXISTS idx_checkpoint_conv_created
+  ON checkpoint(conversation_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS gin_checkpoint_state
+  ON checkpoint USING GIN (state);
+
+--------------------------
+-- 3) Outbox queue (async memory writing)
+--------------------------
+CREATE TABLE IF NOT EXISTS memory_outbox (
+  job_id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id   UUID NOT NULL REFERENCES conversation(conversation_id) ON DELETE CASCADE,
+
+  payload           JSONB NOT NULL,                        -- what the memory-writer needs
+  status            TEXT NOT NULL DEFAULT 'pending',        -- pending|processing|done|failed
+  attempts          INT  NOT NULL DEFAULT 0,
+
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_outbox_pending
+  ON memory_outbox(status, created_at);
+
+--------------------------
+-- 4) Durable Memory Store
+--------------------------
+CREATE TABLE IF NOT EXISTS memory_item (
+  memory_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Scope:
+  -- global: applies across conversations for user_key
+  -- conversation: applies only to a single conversation_id
+  scope             memory_scope NOT NULL DEFAULT 'global',
+  user_key          TEXT,                                  -- required for global memories
+  conversation_id   UUID NULL REFERENCES conversation(conversation_id) ON DELETE CASCADE,
+
+  kind              memory_kind NOT NULL,
+  key               TEXT NOT NULL,                          -- stable handle (e.g., "diet.vegetarian")
+  value             JSONB NOT NULL,                         -- canonical structured value
+  text              TEXT,                                   -- human-readable
+
+  confidence        REAL NOT NULL DEFAULT 0.7,               -- 0..1
+  importance        REAL NOT NULL DEFAULT 0.5,               -- 0..1
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+
+  source            JSONB NOT NULL DEFAULT '{}'::jsonb,      -- provenance
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Dedupe:
+  -- global memories are unique per (user_key, key)
+  -- conversation memories are unique per (conversation_id, key)
+  CONSTRAINT chk_memory_scope_keys CHECK (
+    (scope = 'global' AND user_key IS NOT NULL AND conversation_id IS NULL)
+    OR
+    (scope = 'conversation' AND conversation_id IS NOT NULL)
+  )
+);
+
+-- Partial unique indexes for dedupe (cleaner than one wide UNIQUE)
+CREATE UNIQUE INDEX IF NOT EXISTS ux_memory_global_user_key_key
+  ON memory_item(user_key, key)
+  WHERE scope = 'global';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_memory_conversation_id_key
+  ON memory_item(conversation_id, key)
+  WHERE scope = 'conversation';
+
+CREATE INDEX IF NOT EXISTS idx_memory_lookup
+  ON memory_item(scope, user_key, conversation_id, kind, is_active);
+
+CREATE INDEX IF NOT EXISTS gin_memory_value
+  ON memory_item USING GIN (value);
+
+-- Optional: append-only history
+CREATE TABLE IF NOT EXISTS memory_version (
+  version_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  memory_id         UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
+
+  value             JSONB NOT NULL,
+  text              TEXT,
+  confidence        REAL,
+  importance        REAL,
+  is_active         BOOLEAN,
+
+  write_reason      TEXT,
+  source            JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_version_memory_created
+  ON memory_version(memory_id, created_at DESC);
